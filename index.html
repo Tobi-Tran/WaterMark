@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pro Watermark Generator (Drag & Drop Edition)</title>
+    <title>Pro Watermark Generator (Ultimate Edition)</title>
     <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/heic2any/dist/heic2any.min.js"></script>
     <style>
@@ -79,10 +79,16 @@
                 <div class="slider-label"><label>Độ Mờ Nền (Blur)</label><span id="valBlur">16</span></div>
                 <input type="range" id="slBlur" min="0" max="100" value="16">
             </div>
+            <!-- Tách 2 thanh viền -->
             <div class="form-group">
-                <div class="slider-label"><label>Độ Dày Viền (%)</label><span id="valPadding">6</span></div>
+                <div class="slider-label"><label>Độ Dày Viền Chung (%)</label><span id="valPadding">6</span></div>
                 <input type="range" id="slPadding" min="2" max="25" value="6">
             </div>
+            <div class="form-group">
+                <div class="slider-label"><label>Độ Dày Lề Dưới (%)</label><span id="valBottom">12</span></div>
+                <input type="range" id="slBottom" min="2" max="30" value="12">
+            </div>
+            <!-- End tách viền -->
             <div class="form-group">
                 <div class="slider-label"><label>Kích Thước Chữ (Scale)</label><span id="valScale">185</span></div>
                 <input type="range" id="slScale" min="50" max="300" value="185">
@@ -132,10 +138,11 @@
         };
 
         // EVENT LẮNG NGHE SLIDER & INPUT
-        ['inMake', 'inModel', 'inSpecs', 'inLocation', 'inColor', 'slBlur', 'slPadding', 'slScale', 'slOffsetY'].forEach(id => {
+        ['inMake', 'inModel', 'inSpecs', 'inLocation', 'inColor', 'slBlur', 'slPadding', 'slBottom', 'slScale', 'slOffsetY'].forEach(id => {
             document.getElementById(id).addEventListener('input', (e) => {
                 if(e.target.id === 'slBlur') document.getElementById('valBlur').innerText = e.target.value;
                 if(e.target.id === 'slPadding') document.getElementById('valPadding').innerText = e.target.value;
+                if(e.target.id === 'slBottom') document.getElementById('valBottom').innerText = e.target.value;
                 if(e.target.id === 'slScale') document.getElementById('valScale').innerText = e.target.value;
                 if(e.target.id === 'slOffsetY') document.getElementById('valOffsetY').innerText = e.target.value;
                 if (currentImage) prepareAndRender();
@@ -271,7 +278,6 @@
             document.getElementById('inSpecs').value = specs;
             document.getElementById('inLocation').value = loc;
             
-            // Reset kéo thả khi load ảnh mới
             dragOffsets = { brand: {x: 0, y: 0}, specs: {x: 0, y: 0}, loc: {x: 0, y: 0} };
 
             let fileToLoad = file;
@@ -301,7 +307,10 @@
             const ctx = canvas.getContext('2d');
 
             const blur = parseInt(document.getElementById('slBlur').value);
+            // Áp dụng Độc lập Viền chung và Lề dưới
             const padding = Math.floor(currentImage.width * (parseInt(document.getElementById('slPadding').value) / 100)); 
+            const bottomPadding = Math.floor(currentImage.width * (parseInt(document.getElementById('slBottom').value) / 100)); 
+            
             const cornerRadius = Math.floor(currentImage.width * 0.02);
             const scale = parseInt(document.getElementById('slScale').value) / 100;
             const offset = (parseInt(document.getElementById('slOffsetY').value) / 100) * padding;
@@ -312,12 +321,9 @@
             const colorMode = document.getElementById('inColor').value; 
             const brand = BRAND_MAP[makeTxt];
 
-            // Tự động phình to Canvas ở lề dưới tránh việc chữ bị cắt cụt khi tăng Scale 
-            const baseFontRaw = currentImage.width * 0.012 * scale;
-            const bottomSpace = padding * 1.5 + (baseFontRaw * 5); // Đảm bảo luôn dư dả không gian
-
+            // Tự do thay đổi Chiều cao Canvas dựa vào bottomPadding do user chọn
             canvas.width = currentImage.width + (padding * 2);
-            canvas.height = currentImage.height + padding + bottomSpace;
+            canvas.height = currentImage.height + padding + bottomPadding;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             // Nền Blur
@@ -335,7 +341,8 @@
             ctx.restore();
 
             const baseFont = canvas.width * 0.012 * scale;
-            let mainY = padding + currentImage.height + (padding * 0.75) + offset + baseFont; // Master Offset
+            // Tính toán tâm của lề dưới
+            let mainY = padding + currentImage.height + (bottomPadding / 2) + offset; 
             
             const mainColor = colorMode === 'black' ? "#000000" : "#ffffff";
             const subColor = colorMode === 'black' ? "rgba(0,0,0,0.7)" : "rgba(255,255,255,0.7)";
@@ -360,7 +367,7 @@
 
             // Tính toán vị trí Gốc (chưa có kéo thả)
             let brandBaseX = (layout === 'center') ? (canvas.width / 2) - (totalBrandWidth / 2) : padding + (canvas.width * 0.02);
-            let brandBaseY = mainY;
+            let brandBaseY = mainY - (layout === 'center' ? baseFont * 1.2 : 0); // Đẩy nhẹ lên nếu layout center
             
             // Apply Kéo Thả cho BRAND
             let brandX = brandBaseX + dragOffsets.brand.x;
@@ -395,7 +402,7 @@
             let locBaseX, locBaseY, locAlign;
 
             if (layout === 'center') {
-                specsBaseX = canvas.width / 2; specsBaseY = mainY + baseFont * 1.3; specsAlign = 'center';
+                specsBaseX = canvas.width / 2; specsBaseY = mainY + baseFont * 0.3; specsAlign = 'center';
                 locBaseX = canvas.width / 2; locBaseY = specsBaseY + baseFont * 1.2; locAlign = 'center';
             } else {
                 specsBaseX = canvas.width - padding - (canvas.width * 0.02); specsBaseY = mainY - baseFont*0.6; specsAlign = 'right';
@@ -415,7 +422,6 @@
 
             // Vẽ Loc
             if (loc) {
-                // Nếu specs rỗng mà layout Split thì đẩy Loc lên vị trí của Specs cho đẹp
                 if(!specs && layout === 'split') { locBaseY = mainY; }
                 
                 let lX = locBaseX + dragOffsets.loc.x; let lY = locBaseY + dragOffsets.loc.y;
@@ -446,14 +452,13 @@
         function handleStart(e) {
             if(!currentImage) return;
             const pos = getMousePos(e);
-            // Quét ngược để ưu tiên khối nhỏ/khối trên cùng
             for (let key of ['loc', 'specs', 'brand']) {
                 let box = hitBoxes[key];
                 if (pos.x >= box.x && pos.x <= box.x + box.w && pos.y >= box.y && pos.y <= box.y + box.h) {
                     activeDrag = key;
                     startMouseX = pos.x;
                     startMouseY = pos.y;
-                    if(e.type === 'touchstart') e.preventDefault(); // Tránh scroll màn hình lúc kéo
+                    if(e.type === 'touchstart') e.preventDefault(); 
                     break;
                 }
             }
