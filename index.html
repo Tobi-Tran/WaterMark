@@ -99,7 +99,6 @@
         let currentImage = null;
         const loadedImages = {}; 
 
-        // 17 Hãng Lớn (Scale đã được tinh chỉnh lại cho hài hòa)
         const BRAND_MAP = {
             'SAMSUNG': { slug: 'samsung', color: '#1428A0', type: 'wordmark', scale: 4.5 },
             'APPLE': { slug: 'apple', color: '#000000', type: 'icon', scale: 1.3 },
@@ -120,7 +119,6 @@
             'LEICA': { slug: 'leica', color: '#ED1C24', type: 'icon', scale: 1.8 }
         };
 
-        // Bắt sự kiện Real-time
         ['inMake', 'inModel', 'inSpecs', 'inLocation', 'inLayout', 'inColor', 'slBlur', 'slPadding', 'slScale', 'slOffsetY'].forEach(id => {
             document.getElementById(id).addEventListener('input', (e) => {
                 if(e.target.id === 'slBlur') document.getElementById('valBlur').innerText = e.target.value;
@@ -131,7 +129,6 @@
             });
         });
 
-        // Bơm CSS ép màu Logo SVG
         async function prepareAndRender() {
             let makeTxt = document.getElementById('inMake').value.trim().toUpperCase();
             const brand = BRAND_MAP[makeTxt];
@@ -161,10 +158,10 @@
             drawCanvasSync(cacheKey);
         }
 
-        // Lấy chi tiết toàn bộ địa chỉ (Xã, Phường, Quận, Huyện)
         async function getFullCityName(lat, lon) {
             try {
-                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=16&addressdetails=1`, {
+                // Thêm tham số email theo chuẩn của OpenStreetMap để tránh bị API chặn
+                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=16&addressdetails=1&email=osmtest@example.com`, {
                     headers: { 'Accept-Language': 'vi,en-US;q=0.9' }
                 });
                 const data = await res.json();
@@ -176,7 +173,6 @@
                 const level3 = ad.city_district || ad.county || ad.district || "";
                 const level4 = ad.city || ad.state || ad.province || "";
                 
-                // Lọc bỏ những cấp độ rỗng và trùng lặp
                 const parts = [level1, level2, level3, level4].filter(Boolean);
                 const uniqueParts = [...new Set(parts)];
                 
@@ -187,13 +183,12 @@
             }
         }
 
-        // Xử lý File Ảnh & EXIF
         document.getElementById('imageInput').addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
 
             const statusEl = document.getElementById('status');
-            statusEl.innerText = "Đang phân tích dữ liệu ảnh...";
+            statusEl.innerText = "Đang rà soát Metadata...";
             statusEl.style.color = "#ffeb3b";
             document.getElementById('downloadBtn').style.display = 'none';
 
@@ -201,10 +196,7 @@
             let lat = null, lon = null;
 
             try {
-                // Đọc EXIF tổng quát
-                const imgExif = await exifr.parse(file, {gps: true, exif: true});
-                // Đọc ép chuyên sâu GPS (Đặc trị cho HEIC)
-                const gpsData = await exifr.gps(file).catch(() => null);
+                const imgExif = await exifr.parse(file, true); // Quét toàn bộ thẻ ẩn
 
                 if (imgExif) {
                     if (imgExif.Make) make = imgExif.Make.toUpperCase();
@@ -221,26 +213,26 @@
                         dateStr = `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()}`;
                     }
                     
-                    // Lấy Tọa độ cẩn thận
-                    lat = gpsData ? gpsData.latitude : (imgExif.latitude || null);
-                    lon = gpsData ? gpsData.longitude : (imgExif.longitude || null);
-                    
-                    let statusMsg = "Trích xuất thông số thành công!";
-                    if (lat != null && lon != null) {
+                    // Lấy tọa độ
+                    if (imgExif.latitude != null && imgExif.longitude != null) {
+                        lat = imgExif.latitude;
+                        lon = imgExif.longitude;
+                        statusEl.innerHTML = `[DEBUG] Bắt được tọa độ gốc: ${lat.toFixed(4)}, ${lon.toFixed(4)}. Đang dịch API...`;
+                        
                         const fullAddress = await getFullCityName(lat, lon);
                         loc = fullAddress ? `${fullAddress} | ${dateStr}` : dateStr;
+                        statusEl.innerHTML = "Trích xuất hoàn tất toàn bộ thông số và địa điểm!";
+                        statusEl.style.color = "#4caf50";
                     } else {
                         loc = dateStr;
-                        statusMsg += "<br><span style='color:#ff9800'>(Lưu ý: Ảnh này không chứa tọa độ GPS do lúc chụp tắt định vị hoặc đã bị xóa)</span>";
+                        statusEl.innerHTML = `⚠ File bị trống tọa độ GPS. Đã lấy thông số máy, nhưng không thể định vị tự động.`;
+                        statusEl.style.color = "#ff9800";
                     }
-                    
-                    statusEl.innerHTML = statusMsg;
-                    statusEl.style.color = "#4caf50";
                 } else {
-                    statusEl.innerText = "Ảnh không có EXIF, vui lòng gõ tay thông số.";
+                    statusEl.innerText = "Ảnh trắng toàn bộ EXIF, vui lòng gõ tay.";
                     statusEl.style.color = "#ff9800";
                 }
-            } catch (err) { statusEl.innerText = "Lỗi: Không đọc được siêu dữ liệu của file này."; }
+            } catch (err) { statusEl.innerText = "Lỗi: File lỗi cấu trúc hoặc không hỗ trợ."; }
 
             let finalModel = model.replace(make, "").trim();
             if (make === 'APPLE' && finalModel.includes('IPHONE')) finalModel = finalModel; 
@@ -271,7 +263,6 @@
             reader.readAsDataURL(fileToLoad);
         });
 
-        // Lõi vẽ đồ họa
         function drawCanvasSync(cacheKey) {
             const canvas = document.getElementById('outCanvas');
             const ctx = canvas.getContext('2d');
@@ -293,13 +284,11 @@
             canvas.height = currentImage.height + padding + bottomSpace;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Xóa phông mờ
             ctx.save();
             ctx.filter = `blur(${blur}px) brightness(0.6)`;
             ctx.drawImage(currentImage, -padding, -padding, canvas.width + padding*2, canvas.height + padding*2);
             ctx.restore();
 
-            // Ảnh chính
             ctx.save();
             ctx.beginPath();
             ctx.roundRect(padding, padding, currentImage.width, currentImage.height, cornerRadius);
@@ -333,7 +322,6 @@
 
             let startX = (layout === 'center') ? (canvas.width / 2) - (totalWidth / 2) : padding + (canvas.width * 0.02);
 
-            // VẼ LOGO / HÃNG
             if (logoImg) {
                 ctx.drawImage(logoImg, startX, mainY - logoDrawS/2, logoDrawS, logoDrawS);
             } else if (makeTxt) {
@@ -342,14 +330,12 @@
                 ctx.fillText(makeTxt, startX, mainY);
             }
 
-            // VẼ TÊN MÁY
             if(modelTxt) {
                 ctx.fillStyle = mainColor; ctx.textAlign = 'left'; ctx.textBaseline = "middle";
                 ctx.font = `normal ${baseFont}px 'Segoe UI', Arial, sans-serif`;
                 ctx.fillText(modelTxt, startX + visualW + paddingAfterLogo, mainY);
             }
 
-            // VẼ THÔNG SỐ EXIF & GPS
             ctx.fillStyle = subColor;
             ctx.font = `normal ${baseFont * 0.8}px 'Segoe UI', Arial, sans-serif`;
             const specs = document.getElementById('inSpecs').value.trim();
