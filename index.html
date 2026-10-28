@@ -79,7 +79,6 @@
                 <div class="slider-label"><label>Độ Mờ Nền (Blur)</label><span id="valBlur">16</span></div>
                 <input type="range" id="slBlur" min="0" max="100" value="16">
             </div>
-            <!-- Tách 2 thanh viền -->
             <div class="form-group">
                 <div class="slider-label"><label>Độ Dày Viền Chung (%)</label><span id="valPadding">6</span></div>
                 <input type="range" id="slPadding" min="2" max="25" value="6">
@@ -88,7 +87,6 @@
                 <div class="slider-label"><label>Độ Dày Lề Dưới (%)</label><span id="valBottom">12</span></div>
                 <input type="range" id="slBottom" min="2" max="30" value="12">
             </div>
-            <!-- End tách viền -->
             <div class="form-group">
                 <div class="slider-label"><label>Kích Thước Chữ (Scale)</label><span id="valScale">185</span></div>
                 <input type="range" id="slScale" min="50" max="300" value="185">
@@ -111,33 +109,32 @@
         let currentCacheKey = "";
         const loadedImages = {}; 
 
-        // TRẠNG THÁI KÉO THẢ (DRAG & DROP)
         let dragOffsets = { brand: {x: 0, y: 0}, specs: {x: 0, y: 0}, loc: {x: 0, y: 0} };
         let hitBoxes = { brand: {x: 0, y: 0, w: 0, h: 0}, specs: {x: 0, y: 0, w: 0, h: 0}, loc: {x: 0, y: 0, w: 0, h: 0} };
         let activeDrag = null;
         let startMouseX = 0, startMouseY = 0;
 
+        // Bổ sung yOffset để tinh chỉnh cân bằng trục Y cho từng logo so với Text
         const BRAND_MAP = {
-            'SAMSUNG': { slug: 'samsung', color: '#1428A0', type: 'wordmark', scale: 4.5 },
-            'APPLE': { slug: 'apple', color: '#000000', type: 'icon', scale: 1.3 },
-            'XIAOMI': { slug: 'xiaomi', color: '#FF6900', type: 'icon', scale: 1.5 },
-            'SONY': { slug: 'sony', color: '#000000', type: 'wordmark', scale: 4.5 },
-            'OPPO': { slug: 'oppo', color: '#006633', type: 'wordmark', scale: 3.5 },
-            'VIVO': { slug: 'vivo', color: '#415FFF', type: 'wordmark', scale: 3.5 },
-            'HUAWEI': { slug: 'huawei', color: '#FF0000', type: 'icon', scale: 1.6 },
-            'ONEPLUS': { slug: 'oneplus', color: '#F5010C', type: 'icon', scale: 1.5 },
-            'GOOGLE': { slug: 'google', color: '#4285F4', type: 'icon', scale: 1.5 },
-            'ASUS': { slug: 'asus', color: '#00539B', type: 'wordmark', scale: 4 },
-            'REALME': { slug: 'realme', color: '#FFD600', type: 'wordmark', scale: 4 },
-            'MOTOROLA': { slug: 'motorola', color: '#001428', type: 'icon', scale: 1.5 },
-            'NOKIA': { slug: 'nokia', color: '#124191', type: 'wordmark', scale: 4.5 },
-            'CANON': { slug: 'canon', color: '#CC0000', type: 'wordmark', scale: 4.5 },
-            'NIKON': { slug: 'nikon', color: '#FFE600', type: 'wordmark', scale: 4.5 },
-            'FUJIFILM': { slug: 'fujifilm', color: '#EE0000', type: 'wordmark', scale: 4.5 },
-            'LEICA': { slug: 'leica', color: '#ED1C24', type: 'icon', scale: 1.8 }
+            'SAMSUNG': { slug: 'samsung', color: '#1428A0', type: 'wordmark', scale: 4.5, yOffset: -0.03 },
+            'APPLE': { slug: 'apple', color: '#000000', type: 'icon', scale: 1.3, yOffset: -0.12 }, // Apple nhấc lên nhiều nhất do có cuống lá
+            'XIAOMI': { slug: 'xiaomi', color: '#FF6900', type: 'icon', scale: 1.5, yOffset: -0.08 },
+            'SONY': { slug: 'sony', color: '#000000', type: 'wordmark', scale: 4.5, yOffset: -0.03 },
+            'OPPO': { slug: 'oppo', color: '#006633', type: 'wordmark', scale: 3.5, yOffset: -0.03 },
+            'VIVO': { slug: 'vivo', color: '#415FFF', type: 'wordmark', scale: 3.5, yOffset: -0.03 },
+            'HUAWEI': { slug: 'huawei', color: '#FF0000', type: 'icon', scale: 1.6, yOffset: -0.08 },
+            'ONEPLUS': { slug: 'oneplus', color: '#F5010C', type: 'icon', scale: 1.5, yOffset: -0.08 },
+            'GOOGLE': { slug: 'google', color: '#4285F4', type: 'icon', scale: 1.5, yOffset: -0.08 },
+            'ASUS': { slug: 'asus', color: '#00539B', type: 'wordmark', scale: 4, yOffset: -0.03 },
+            'REALME': { slug: 'realme', color: '#FFD600', type: 'wordmark', scale: 4, yOffset: -0.03 },
+            'MOTOROLA': { slug: 'motorola', color: '#001428', type: 'icon', scale: 1.5, yOffset: -0.08 },
+            'NOKIA': { slug: 'nokia', color: '#124191', type: 'wordmark', scale: 4.5, yOffset: -0.03 },
+            'CANON': { slug: 'canon', color: '#CC0000', type: 'wordmark', scale: 4.5, yOffset: -0.03 },
+            'NIKON': { slug: 'nikon', color: '#FFE600', type: 'wordmark', scale: 4.5, yOffset: -0.03 },
+            'FUJIFILM': { slug: 'fujifilm', color: '#EE0000', type: 'wordmark', scale: 4.5, yOffset: -0.03 },
+            'LEICA': { slug: 'leica', color: '#ED1C24', type: 'icon', scale: 1.8, yOffset: -0.08 }
         };
 
-        // EVENT LẮNG NGHE SLIDER & INPUT
         ['inMake', 'inModel', 'inSpecs', 'inLocation', 'inColor', 'slBlur', 'slPadding', 'slBottom', 'slScale', 'slOffsetY'].forEach(id => {
             document.getElementById(id).addEventListener('input', (e) => {
                 if(e.target.id === 'slBlur') document.getElementById('valBlur').innerText = e.target.value;
@@ -149,7 +146,6 @@
             });
         });
 
-        // Reset Kéo Thả khi đổi Layout
         document.getElementById('inLayout').addEventListener('change', () => {
             dragOffsets = { brand: {x: 0, y: 0}, specs: {x: 0, y: 0}, loc: {x: 0, y: 0} };
             if (currentImage) prepareAndRender();
@@ -216,7 +212,6 @@
             }
         }
 
-        // TẢI ẢNH VÀ XỬ LÝ EXIF
         document.getElementById('imageInput').addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -301,13 +296,11 @@
             reader.readAsDataURL(fileToLoad);
         });
 
-        // CORE RENDER CANVAS
         function drawCanvasSync(cacheKey) {
             const canvas = document.getElementById('outCanvas');
             const ctx = canvas.getContext('2d');
 
             const blur = parseInt(document.getElementById('slBlur').value);
-            // Áp dụng Độc lập Viền chung và Lề dưới
             const padding = Math.floor(currentImage.width * (parseInt(document.getElementById('slPadding').value) / 100)); 
             const bottomPadding = Math.floor(currentImage.width * (parseInt(document.getElementById('slBottom').value) / 100)); 
             
@@ -321,18 +314,15 @@
             const colorMode = document.getElementById('inColor').value; 
             const brand = BRAND_MAP[makeTxt];
 
-            // Tự do thay đổi Chiều cao Canvas dựa vào bottomPadding do user chọn
             canvas.width = currentImage.width + (padding * 2);
             canvas.height = currentImage.height + padding + bottomPadding;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Nền Blur
             ctx.save();
             ctx.filter = `blur(${blur}px) brightness(0.6)`;
             ctx.drawImage(currentImage, -padding, -padding, canvas.width + padding*2, canvas.height + padding*2);
             ctx.restore();
 
-            // Ảnh Chính Bo Góc
             ctx.save();
             ctx.beginPath();
             ctx.roundRect(padding, padding, currentImage.width, currentImage.height, cornerRadius);
@@ -341,23 +331,24 @@
             ctx.restore();
 
             const baseFont = canvas.width * 0.012 * scale;
-            // Tính toán tâm của lề dưới
             let mainY = padding + currentImage.height + (bottomPadding / 2) + offset; 
             
             const mainColor = colorMode === 'black' ? "#000000" : "#ffffff";
             const subColor = colorMode === 'black' ? "rgba(0,0,0,0.7)" : "rgba(255,255,255,0.7)";
 
-            // 1. CHUẨN BỊ LOGO / HÃNG (BRAND BLOCK)
             const logoImg = loadedImages[cacheKey];
-            let logoDrawS = 0, visualW = 0, paddingAfterLogo = 0;
+            let logoDrawS = 0, visualW = 0, paddingAfterLogo = 0, yTweak = 0;
             
             if (logoImg && brand) {
-                logoDrawS = baseFont * brand.scale; visualW = logoDrawS; 
+                logoDrawS = baseFont * brand.scale; 
+                visualW = logoDrawS; 
                 paddingAfterLogo = brand.type === 'wordmark' ? baseFont * 0.2 : baseFont * 0.5;
+                yTweak = brand.yOffset * baseFont; // Lấy thông số căn chỉnh yOffset từ Brand Map
             } else if (makeTxt) {
                 ctx.font = `900 ${baseFont * 1.5}px 'Arial Black', Impact, sans-serif`;
                 visualW = ctx.measureText(makeTxt).width;
                 paddingAfterLogo = baseFont * 0.4;
+                yTweak = -0.05 * baseFont;
             }
 
             ctx.font = `normal ${baseFont}px 'Segoe UI', Arial, sans-serif`;
@@ -365,21 +356,19 @@
             let modelWidth = ctx.measureText(modelTxt ? modelTxt : "").width;
             let totalBrandWidth = visualW + (modelTxt ? paddingAfterLogo : 0) + modelWidth;
 
-            // Tính toán vị trí Gốc (chưa có kéo thả)
             let brandBaseX = (layout === 'center') ? (canvas.width / 2) - (totalBrandWidth / 2) : padding + (canvas.width * 0.02);
-            let brandBaseY = mainY - (layout === 'center' ? baseFont * 1.2 : 0); // Đẩy nhẹ lên nếu layout center
+            let brandBaseY = mainY - (layout === 'center' ? baseFont * 1.2 : 0); 
             
-            // Apply Kéo Thả cho BRAND
             let brandX = brandBaseX + dragOffsets.brand.x;
             let brandY = brandBaseY + dragOffsets.brand.y;
 
-            // VẼ BRAND BLOCK
+            // DRAW LOGO (có cộng thêm yTweak bù trừ độ lệch tâm)
             if (logoImg) {
-                ctx.drawImage(logoImg, brandX, brandY - logoDrawS/2, logoDrawS, logoDrawS);
+                ctx.drawImage(logoImg, brandX, brandY - logoDrawS/2 + yTweak, logoDrawS, logoDrawS);
             } else if (makeTxt) {
                 ctx.fillStyle = mainColor; ctx.textAlign = 'left'; ctx.textBaseline = "middle";
                 ctx.font = `900 ${baseFont * 1.5}px 'Arial Black', Impact, sans-serif`;
-                ctx.fillText(makeTxt, brandX, brandY);
+                ctx.fillText(makeTxt, brandX, brandY + yTweak);
             }
             if(modelTxt) {
                 ctx.fillStyle = mainColor; ctx.textAlign = 'left'; ctx.textBaseline = "middle";
@@ -387,12 +376,10 @@
                 ctx.fillText(modelTxt, brandX + visualW + paddingAfterLogo, brandY);
             }
 
-            // Ghi nhận Hitbox (Vùng cảm ứng để click kéo)
             const brandHitH = Math.max(logoDrawS, baseFont * 1.5) + baseFont;
             hitBoxes.brand = { x: brandX - baseFont/2, y: brandY - brandHitH/2, w: totalBrandWidth + baseFont, h: brandHitH };
 
 
-            // 2. VẼ THÔNG SỐ VÀ ĐỊA ĐIỂM (SPECS & LOC BLOCKS)
             ctx.fillStyle = subColor;
             ctx.font = `normal ${baseFont * 0.8}px 'Segoe UI', Arial, sans-serif`;
             const specs = document.getElementById('inSpecs').value.trim();
@@ -409,7 +396,6 @@
                 locBaseX = canvas.width - padding - (canvas.width * 0.02); locBaseY = mainY + baseFont*0.6; locAlign = 'right';
             }
 
-            // Vẽ Specs
             if (specs) {
                 let sX = specsBaseX + dragOffsets.specs.x; let sY = specsBaseY + dragOffsets.specs.y;
                 ctx.textAlign = specsAlign; ctx.textBaseline = "middle";
@@ -420,7 +406,6 @@
                 hitBoxes.specs = { x: hsX - baseFont/2, y: sY - baseFont, w: sw + baseFont, h: baseFont * 2 };
             } else { hitBoxes.specs = {x:0, y:0, w:0, h:0}; }
 
-            // Vẽ Loc
             if (loc) {
                 if(!specs && layout === 'split') { locBaseY = mainY; }
                 
@@ -434,7 +419,6 @@
             } else { hitBoxes.loc = {x:0, y:0, w:0, h:0}; }
         }
 
-        // --- HỆ THỐNG LẮNG NGHE CHUỘT / CẢM ỨNG ĐỂ KÉO THẢ ---
         const canvas = document.getElementById('outCanvas');
 
         function getMousePos(evt) {
