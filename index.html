@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pro Watermark Generator (Perfect Align Edition)</title>
+    <title>Pro Watermark Generator (Final Edition)</title>
     <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/heic2any/dist/heic2any.min.js"></script>
     <style>
@@ -25,6 +25,8 @@
         .hint { color: #4caf50; font-size: 13px; margin-top: -10px; margin-bottom: 15px; font-style: italic; }
         #status { color: #ffeb3b; font-size: 13px; margin-bottom: 15px; font-weight: 600; text-align: center; line-height: 1.4;}
         .section-title { margin: 0 0 15px 0; font-size: 18px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .group-box { padding: 15px; border: 1px solid #333; border-radius: 8px; background: #1a1a1a; margin-bottom: 15px; }
+        .group-title { font-size: 12px; color: var(--accent); text-transform: uppercase; font-weight: bold; margin-bottom: 15px; letter-spacing: 1px;}
     </style>
 </head>
 <body>
@@ -40,7 +42,7 @@
             <div id="status">Chờ nạp ảnh...</div>
 
             <div class="form-group">
-                <label>Hãng (Gõ Samsung, Xiaomi, Leica, Huawei...)</label>
+                <label>Hãng (Gõ Samsung, Xiaomi, Leica, Apple...)</label>
                 <input type="text" id="inMake" placeholder="VD: SAMSUNG">
             </div>
             <div class="form-group">
@@ -87,9 +89,22 @@
                 <div class="slider-label"><label>Độ Dày Lề Dưới (%)</label><span id="valBottom">12</span></div>
                 <input type="range" id="slBottom" min="2" max="30" value="12">
             </div>
-            <div class="form-group">
-                <div class="slider-label"><label>Kích Thước Chữ (Scale)</label><span id="valScale">185</span></div>
-                <input type="range" id="slScale" min="50" max="300" value="185">
+            
+            <!-- Nhóm Kích thước Độc lập -->
+            <div class="group-box">
+                <div class="group-title">Kích Thước Riêng Lẻ (Scale)</div>
+                <div class="form-group">
+                    <div class="slider-label"><label>Size Logo & Tên Máy</label><span id="valScaleBrand">185</span></div>
+                    <input type="range" id="slScaleBrand" min="50" max="300" value="185">
+                </div>
+                <div class="form-group">
+                    <div class="slider-label"><label>Size Thông Số EXIF</label><span id="valScaleSpecs">148</span></div>
+                    <input type="range" id="slScaleSpecs" min="50" max="300" value="148">
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <div class="slider-label"><label>Size Địa Điểm</label><span id="valScaleLoc">148</span></div>
+                    <input type="range" id="slScaleLoc" min="50" max="300" value="148">
+                </div>
             </div>
             
             <hr style="border-color: #333; margin: 20px 0;">
@@ -141,12 +156,14 @@
             'LEICA': { slug: 'leica', color: '#ED1C24', type: 'icon', scale: 1.8, yOffset: 0 }
         };
 
-        ['inMake', 'inModel', 'inSpecs', 'inLocation', 'inColor', 'slBlur', 'slPadding', 'slBottom', 'slScale', 'slOffsetY', 'slLogoY'].forEach(id => {
+        ['inMake', 'inModel', 'inSpecs', 'inLocation', 'inColor', 'slBlur', 'slPadding', 'slBottom', 'slScaleBrand', 'slScaleSpecs', 'slScaleLoc', 'slOffsetY', 'slLogoY'].forEach(id => {
             document.getElementById(id).addEventListener('input', (e) => {
                 if(e.target.id === 'slBlur') document.getElementById('valBlur').innerText = e.target.value;
                 if(e.target.id === 'slPadding') document.getElementById('valPadding').innerText = e.target.value;
                 if(e.target.id === 'slBottom') document.getElementById('valBottom').innerText = e.target.value;
-                if(e.target.id === 'slScale') document.getElementById('valScale').innerText = e.target.value;
+                if(e.target.id === 'slScaleBrand') document.getElementById('valScaleBrand').innerText = e.target.value;
+                if(e.target.id === 'slScaleSpecs') document.getElementById('valScaleSpecs').innerText = e.target.value;
+                if(e.target.id === 'slScaleLoc') document.getElementById('valScaleLoc').innerText = e.target.value;
                 if(e.target.id === 'slOffsetY') document.getElementById('valOffsetY').innerText = e.target.value;
                 if(e.target.id === 'slLogoY') document.getElementById('valLogoY').innerText = e.target.value;
                 if (currentImage) prepareAndRender();
@@ -312,10 +329,18 @@
             const bottomPadding = Math.floor(currentImage.width * (parseInt(document.getElementById('slBottom').value) / 100)); 
             
             const cornerRadius = Math.floor(currentImage.width * 0.02);
-            const scale = parseInt(document.getElementById('slScale').value) / 100;
+            
+            // Tính toán 3 tỷ lệ Scale độc lập
+            const scaleBrand = parseInt(document.getElementById('slScaleBrand').value) / 100;
+            const scaleSpecs = parseInt(document.getElementById('slScaleSpecs').value) / 100;
+            const scaleLoc = parseInt(document.getElementById('slScaleLoc').value) / 100;
+
+            const baseFontBrand = canvas.width * 0.012 * scaleBrand;
+            const baseFontSpecs = canvas.width * 0.012 * scaleSpecs;
+            const baseFontLoc = canvas.width * 0.012 * scaleLoc;
+
             const offset = (parseInt(document.getElementById('slOffsetY').value) / 100) * padding;
-            // Tỷ lệ bù trừ từ thanh Căn chỉnh Logo
-            const logoYAdjust = (parseInt(document.getElementById('slLogoY').value) / 100) * (canvas.width * 0.012 * scale);
+            const logoYAdjust = (parseInt(document.getElementById('slLogoY').value) / 100) * baseFontBrand;
             
             const makeTxt = document.getElementById('inMake').value.trim().toUpperCase();
             let modelTxt = document.getElementById('inModel').value.trim();
@@ -339,7 +364,6 @@
             ctx.drawImage(currentImage, padding, padding, currentImage.width, currentImage.height);
             ctx.restore();
 
-            const baseFont = canvas.width * 0.012 * scale;
             let mainY = padding + currentImage.height + (bottomPadding / 2) + offset; 
             
             const mainColor = colorMode === 'black' ? "#000000" : "#ffffff";
@@ -348,50 +372,50 @@
             const logoImg = loadedImages[cacheKey];
             let logoDrawS = 0, visualW = 0, paddingAfterLogo = 0, yTweak = 0;
             
+            // CHUẨN BỊ SIZE & TỌA ĐỘ CHO BRAND
             if (logoImg && brand) {
-                logoDrawS = baseFont * brand.scale; 
+                logoDrawS = baseFontBrand * brand.scale; 
                 visualW = logoDrawS; 
-                paddingAfterLogo = brand.type === 'wordmark' ? baseFont * 0.2 : baseFont * 0.5;
-                // Cộng thêm tùy chỉnh của User
-                yTweak = (brand.yOffset * baseFont) + logoYAdjust; 
+                paddingAfterLogo = brand.type === 'wordmark' ? baseFontBrand * 0.2 : baseFontBrand * 0.5;
+                yTweak = (brand.yOffset * baseFontBrand) + logoYAdjust; 
             } else if (makeTxt) {
-                ctx.font = `900 ${baseFont * 1.5}px 'Arial Black', Impact, sans-serif`;
+                ctx.font = `900 ${baseFontBrand * 1.5}px 'Arial Black', Impact, sans-serif`;
                 visualW = ctx.measureText(makeTxt).width;
-                paddingAfterLogo = baseFont * 0.4;
-                yTweak = (-0.05 * baseFont) + logoYAdjust;
+                paddingAfterLogo = baseFontBrand * 0.4;
+                yTweak = (-0.05 * baseFontBrand) + logoYAdjust;
             }
 
-            ctx.font = `normal ${baseFont}px 'Segoe UI', Arial, sans-serif`;
+            ctx.font = `normal ${baseFontBrand}px 'Segoe UI', Arial, sans-serif`;
             modelTxt = modelTxt.toUpperCase(); 
             let modelWidth = ctx.measureText(modelTxt ? modelTxt : "").width;
             let totalBrandWidth = visualW + (modelTxt ? paddingAfterLogo : 0) + modelWidth;
 
             let brandBaseX = (layout === 'center') ? (canvas.width / 2) - (totalBrandWidth / 2) : padding + (canvas.width * 0.02);
-            let brandBaseY = mainY - (layout === 'center' ? baseFont * 1.2 : 0); 
+            let brandBaseY = mainY - (layout === 'center' ? baseFontBrand * 1.2 : 0); 
             
             let brandX = brandBaseX + dragOffsets.brand.x;
             let brandY = brandBaseY + dragOffsets.brand.y;
 
-            // DRAW LOGO với yTweak hoàn hảo
+            // DRAW LOGO & MODEL
             if (logoImg) {
                 ctx.drawImage(logoImg, brandX, brandY - logoDrawS/2 + yTweak, logoDrawS, logoDrawS);
             } else if (makeTxt) {
                 ctx.fillStyle = mainColor; ctx.textAlign = 'left'; ctx.textBaseline = "middle";
-                ctx.font = `900 ${baseFont * 1.5}px 'Arial Black', Impact, sans-serif`;
+                ctx.font = `900 ${baseFontBrand * 1.5}px 'Arial Black', Impact, sans-serif`;
                 ctx.fillText(makeTxt, brandX, brandY + yTweak);
             }
             if(modelTxt) {
                 ctx.fillStyle = mainColor; ctx.textAlign = 'left'; ctx.textBaseline = "middle";
-                ctx.font = `normal ${baseFont}px 'Segoe UI', Arial, sans-serif`;
+                ctx.font = `normal ${baseFontBrand}px 'Segoe UI', Arial, sans-serif`;
                 ctx.fillText(modelTxt, brandX + visualW + paddingAfterLogo, brandY);
             }
 
-            const brandHitH = Math.max(logoDrawS, baseFont * 1.5) + baseFont;
-            hitBoxes.brand = { x: brandX - baseFont/2, y: brandY - brandHitH/2, w: totalBrandWidth + baseFont, h: brandHitH };
+            const brandHitH = Math.max(logoDrawS, baseFontBrand * 1.5) + baseFontBrand;
+            hitBoxes.brand = { x: brandX - baseFontBrand/2, y: brandY - brandHitH/2, w: totalBrandWidth + baseFontBrand, h: brandHitH };
 
 
+            // CHUẨN BỊ SIZE & TỌA ĐỘ CHO SPECS & LOC
             ctx.fillStyle = subColor;
-            ctx.font = `normal ${baseFont * 0.8}px 'Segoe UI', Arial, sans-serif`;
             const specs = document.getElementById('inSpecs').value.trim();
             const loc = document.getElementById('inLocation').value.trim();
 
@@ -399,33 +423,37 @@
             let locBaseX, locBaseY, locAlign;
 
             if (layout === 'center') {
-                specsBaseX = canvas.width / 2; specsBaseY = mainY + baseFont * 0.3; specsAlign = 'center';
-                locBaseX = canvas.width / 2; locBaseY = specsBaseY + baseFont * 1.2; locAlign = 'center';
+                specsBaseX = canvas.width / 2; specsBaseY = mainY + baseFontSpecs * 0.3; specsAlign = 'center';
+                locBaseX = canvas.width / 2; locBaseY = specsBaseY + Math.max(baseFontSpecs, baseFontLoc) * 1.2; locAlign = 'center';
             } else {
-                specsBaseX = canvas.width - padding - (canvas.width * 0.02); specsBaseY = mainY - baseFont*0.6; specsAlign = 'right';
-                locBaseX = canvas.width - padding - (canvas.width * 0.02); locBaseY = mainY + baseFont*0.6; locAlign = 'right';
+                specsBaseX = canvas.width - padding - (canvas.width * 0.02); specsBaseY = mainY - baseFontSpecs*0.6; specsAlign = 'right';
+                locBaseX = canvas.width - padding - (canvas.width * 0.02); locBaseY = mainY + baseFontLoc*0.6; locAlign = 'right';
             }
 
+            // VẼ SPECS (Sử dụng baseFontSpecs)
             if (specs) {
+                ctx.font = `normal ${baseFontSpecs}px 'Segoe UI', Arial, sans-serif`;
                 let sX = specsBaseX + dragOffsets.specs.x; let sY = specsBaseY + dragOffsets.specs.y;
                 ctx.textAlign = specsAlign; ctx.textBaseline = "middle";
                 ctx.fillText(specs, sX, sY);
                 
                 let sw = ctx.measureText(specs).width;
                 let hsX = (specsAlign === 'center') ? sX - sw/2 : (specsAlign === 'right' ? sX - sw : sX);
-                hitBoxes.specs = { x: hsX - baseFont/2, y: sY - baseFont, w: sw + baseFont, h: baseFont * 2 };
+                hitBoxes.specs = { x: hsX - baseFontSpecs/2, y: sY - baseFontSpecs, w: sw + baseFontSpecs, h: baseFontSpecs * 2 };
             } else { hitBoxes.specs = {x:0, y:0, w:0, h:0}; }
 
+            // VẼ LOC (Sử dụng baseFontLoc)
             if (loc) {
                 if(!specs && layout === 'split') { locBaseY = mainY; }
                 
+                ctx.font = `normal ${baseFontLoc}px 'Segoe UI', Arial, sans-serif`;
                 let lX = locBaseX + dragOffsets.loc.x; let lY = locBaseY + dragOffsets.loc.y;
                 ctx.textAlign = locAlign; ctx.textBaseline = "middle";
                 ctx.fillText(loc, lX, lY);
                 
                 let lw = ctx.measureText(loc).width;
                 let hlX = (locAlign === 'center') ? lX - lw/2 : (locAlign === 'right' ? lX - lw : lX);
-                hitBoxes.loc = { x: hlX - baseFont/2, y: lY - baseFont, w: lw + baseFont, h: baseFont * 2 };
+                hitBoxes.loc = { x: hlX - baseFontLoc/2, y: lY - baseFontLoc, w: lw + baseFontLoc, h: baseFontLoc * 2 };
             } else { hitBoxes.loc = {x:0, y:0, w:0, h:0}; }
         }
 
