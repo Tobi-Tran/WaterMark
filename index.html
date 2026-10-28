@@ -158,14 +158,14 @@
             drawCanvasSync(cacheKey);
         }
 
+        // Đã sửa lại API Không dính CORS
         async function getFullCityName(lat, lon) {
             try {
-                // Thêm tham số email theo chuẩn của OpenStreetMap để tránh bị API chặn
-                const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=16&addressdetails=1&email=osmtest@example.com`, {
-                    headers: { 'Accept-Language': 'vi,en-US;q=0.9' }
-                });
+                // API 1: OpenStreetMap (Đã sửa URL an toàn)
+                const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=16&addressdetails=1&accept-language=vi`;
+                const res = await fetch(url);
                 const data = await res.json();
-                if (!data || !data.address) return "";
+                if (!data || !data.address) throw new Error("OSM Empty");
                 
                 const ad = data.address;
                 const level1 = ad.road || ad.neighbourhood || ad.hamlet || "";
@@ -175,11 +175,19 @@
                 
                 const parts = [level1, level2, level3, level4].filter(Boolean);
                 const uniqueParts = [...new Set(parts)];
-                
                 return uniqueParts.join(', ');
             } catch (error) { 
-                console.error("Lỗi định vị:", error);
-                return ""; 
+                console.warn("Chuyển API dự phòng do CORS/Block: ", error);
+                try {
+                    // API 2: BigDataCloud (Chuyên trị lỗi chặn IP / CORS)
+                    const backupUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=vi`;
+                    const res2 = await fetch(backupUrl);
+                    const data2 = await res2.json();
+                    const parts = [data2.locality, data2.city, data2.principalSubdivision].filter(Boolean);
+                    return [...new Set(parts)].join(', ');
+                } catch (err2) {
+                    return ""; 
+                }
             }
         }
 
@@ -196,7 +204,7 @@
             let lat = null, lon = null;
 
             try {
-                const imgExif = await exifr.parse(file, true); // Quét toàn bộ thẻ ẩn
+                const imgExif = await exifr.parse(file, true); 
 
                 if (imgExif) {
                     if (imgExif.Make) make = imgExif.Make.toUpperCase();
@@ -213,16 +221,21 @@
                         dateStr = `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()}`;
                     }
                     
-                    // Lấy tọa độ
+                    // Xử lý tọa độ với cảnh báo API
                     if (imgExif.latitude != null && imgExif.longitude != null) {
                         lat = imgExif.latitude;
                         lon = imgExif.longitude;
-                        statusEl.innerHTML = `[DEBUG] Bắt được tọa độ gốc: ${lat.toFixed(4)}, ${lon.toFixed(4)}. Đang dịch API...`;
                         
                         const fullAddress = await getFullCityName(lat, lon);
-                        loc = fullAddress ? `${fullAddress} | ${dateStr}` : dateStr;
-                        statusEl.innerHTML = "Trích xuất hoàn tất toàn bộ thông số và địa điểm!";
-                        statusEl.style.color = "#4caf50";
+                        if (fullAddress) {
+                            loc = `${fullAddress} | ${dateStr}`;
+                            statusEl.innerHTML = "Trích xuất hoàn tất toàn bộ thông số và địa điểm!";
+                            statusEl.style.color = "#4caf50";
+                        } else {
+                            loc = dateStr;
+                            statusEl.innerHTML = "⚠ Đã có tọa độ nhưng quá trình dịch bản đồ bị lỗi mạng. Hãy gõ tay địa điểm.";
+                            statusEl.style.color = "#ff9800";
+                        }
                     } else {
                         loc = dateStr;
                         statusEl.innerHTML = `⚠ File bị trống tọa độ GPS. Đã lấy thông số máy, nhưng không thể định vị tự động.`;
