@@ -3,16 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pro Watermark Generator (Ultimate Edition)</title>
+    <title>Pro Watermark Generator (Drag & Drop Edition)</title>
     <script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/heic2any/dist/heic2any.min.js"></script>
     <style>
         :root { --bg: #121212; --panel: #1e1e1e; --accent: #2979ff; --text: #f5f5f5; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
-        .container { display: flex; flex-direction: row; gap: 20px; width: 100%; max-width: 1200px; align-items: flex-start; justify-content: center; flex-wrap: wrap; }
+        .container { display: flex; flex-direction: row; gap: 20px; width: 100%; max-width: 1300px; align-items: flex-start; justify-content: center; flex-wrap: wrap; }
         .control-panel { background: var(--panel); padding: 25px; border-radius: 12px; width: 100%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .canvas-wrapper { flex: 1; min-width: 300px; max-width: 800px; display: flex; flex-direction: column; align-items: center; }
-        canvas { width: 100%; height: auto; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .canvas-wrapper { flex: 1; min-width: 300px; max-width: 900px; display: flex; flex-direction: column; align-items: center; position: relative; }
+        canvas { width: 100%; height: auto; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); cursor: grab; touch-action: none; }
+        canvas:active { cursor: grabbing; }
         .form-group { margin-bottom: 15px; display: flex; flex-direction: column; }
         label { margin-bottom: 6px; font-weight: 600; font-size: 13px; color: #aaa; text-transform: uppercase; }
         input[type="text"], input[type="file"], select { padding: 10px; border-radius: 6px; border: 1px solid #333; background: #2a2a2a; color: #fff; font-size: 14px; outline: none; transition: 0.2s; }
@@ -21,6 +22,7 @@
         .slider-label { display: flex; justify-content: space-between; }
         .btn { background: var(--accent); color: white; border: none; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; width: 100%; margin-top: 10px; transition: 0.2s; }
         .btn:hover { background: #1c54b2; }
+        .hint { color: #4caf50; font-size: 13px; margin-top: -10px; margin-bottom: 15px; font-style: italic; }
         #status { color: #ffeb3b; font-size: 13px; margin-bottom: 15px; font-weight: 600; text-align: center; line-height: 1.4;}
         .section-title { margin: 0 0 15px 0; font-size: 18px; border-bottom: 1px solid #333; padding-bottom: 10px; }
     </style>
@@ -55,12 +57,15 @@
             </div>
 
             <h2 class="section-title" style="margin-top: 25px;">Tùy Chỉnh Giao Diện</h2>
+            <div class="hint">💡 Mẹo: Nhấn và kéo thả trực tiếp từng dòng chữ trên ảnh để tùy biến vị trí!</div>
+            
             <div class="form-group">
-                <label>Bố cục Chữ (Layout)</label>
+                <label>Bố cục Gốc (Layout)</label>
                 <select id="inLayout">
                     <option value="center">Căn Giữa (Nằm dưới đáy)</option>
                     <option value="split">Chia Trái - Phải</option>
                 </select>
+                <button id="btnResetDrag" class="btn" style="background:#555; margin-top:10px; font-size: 14px; padding: 8px;">↺ Reset Vị Trí Kéo Thả</button>
             </div>
             <div class="form-group">
                 <label>Màu Logo & Chữ</label>
@@ -83,11 +88,11 @@
                 <input type="range" id="slScale" min="50" max="300" value="185">
             </div>
             <div class="form-group">
-                <div class="slider-label"><label>Di Chuyển Lên/Xuống</label><span id="valOffsetY">0</span></div>
-                <input type="range" id="slOffsetY" min="-100" max="100" value="0">
+                <div class="slider-label"><label>Master Offset (Lên/Xuống Toàn bộ)</label><span id="valOffsetY">0</span></div>
+                <input type="range" id="slOffsetY" min="-200" max="200" value="0">
             </div>
 
-            <button class="btn" id="downloadBtn" style="display:none;">Tải Ảnh Về</button>
+            <button class="btn" id="downloadBtn" style="display:none; background: #4caf50;">Tải Ảnh Về</button>
         </div>
 
         <div class="canvas-wrapper">
@@ -97,7 +102,14 @@
 
     <script>
         let currentImage = null;
+        let currentCacheKey = "";
         const loadedImages = {}; 
+
+        // TRẠNG THÁI KÉO THẢ (DRAG & DROP)
+        let dragOffsets = { brand: {x: 0, y: 0}, specs: {x: 0, y: 0}, loc: {x: 0, y: 0} };
+        let hitBoxes = { brand: {x: 0, y: 0, w: 0, h: 0}, specs: {x: 0, y: 0, w: 0, h: 0}, loc: {x: 0, y: 0, w: 0, h: 0} };
+        let activeDrag = null;
+        let startMouseX = 0, startMouseY = 0;
 
         const BRAND_MAP = {
             'SAMSUNG': { slug: 'samsung', color: '#1428A0', type: 'wordmark', scale: 4.5 },
@@ -119,7 +131,8 @@
             'LEICA': { slug: 'leica', color: '#ED1C24', type: 'icon', scale: 1.8 }
         };
 
-        ['inMake', 'inModel', 'inSpecs', 'inLocation', 'inLayout', 'inColor', 'slBlur', 'slPadding', 'slScale', 'slOffsetY'].forEach(id => {
+        // EVENT LẮNG NGHE SLIDER & INPUT
+        ['inMake', 'inModel', 'inSpecs', 'inLocation', 'inColor', 'slBlur', 'slPadding', 'slScale', 'slOffsetY'].forEach(id => {
             document.getElementById(id).addEventListener('input', (e) => {
                 if(e.target.id === 'slBlur') document.getElementById('valBlur').innerText = e.target.value;
                 if(e.target.id === 'slPadding') document.getElementById('valPadding').innerText = e.target.value;
@@ -129,13 +142,24 @@
             });
         });
 
+        // Reset Kéo Thả khi đổi Layout
+        document.getElementById('inLayout').addEventListener('change', () => {
+            dragOffsets = { brand: {x: 0, y: 0}, specs: {x: 0, y: 0}, loc: {x: 0, y: 0} };
+            if (currentImage) prepareAndRender();
+        });
+        
+        document.getElementById('btnResetDrag').addEventListener('click', () => {
+            dragOffsets = { brand: {x: 0, y: 0}, specs: {x: 0, y: 0}, loc: {x: 0, y: 0} };
+            if (currentImage) prepareAndRender();
+        });
+
         async function prepareAndRender() {
             let makeTxt = document.getElementById('inMake').value.trim().toUpperCase();
             const brand = BRAND_MAP[makeTxt];
             const colorMode = document.getElementById('inColor').value;
-            const cacheKey = `${makeTxt}_${colorMode}`;
+            currentCacheKey = `${makeTxt}_${colorMode}`;
             
-            if (brand && !loadedImages[cacheKey]) {
+            if (brand && !loadedImages[currentCacheKey]) {
                 try {
                     const res = await fetch(`https://cdn.jsdelivr.net/npm/simple-icons@v12/icons/${brand.slug}.svg`);
                     let svgText = await res.text();
@@ -152,16 +176,14 @@
                     
                     const img = new Image();
                     await new Promise((resolve) => { img.onload = resolve; img.src = url; });
-                    loadedImages[cacheKey] = img;
+                    loadedImages[currentCacheKey] = img;
                 } catch (e) { console.error("Lỗi kéo logo: ", e); }
             }
-            drawCanvasSync(cacheKey);
+            drawCanvasSync(currentCacheKey);
         }
 
-        // Đã sửa lại API Không dính CORS
         async function getFullCityName(lat, lon) {
             try {
-                // API 1: OpenStreetMap (Đã sửa URL an toàn)
                 const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=16&addressdetails=1&accept-language=vi`;
                 const res = await fetch(url);
                 const data = await res.json();
@@ -177,20 +199,17 @@
                 const uniqueParts = [...new Set(parts)];
                 return uniqueParts.join(', ');
             } catch (error) { 
-                console.warn("Chuyển API dự phòng do CORS/Block: ", error);
                 try {
-                    // API 2: BigDataCloud (Chuyên trị lỗi chặn IP / CORS)
                     const backupUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=vi`;
                     const res2 = await fetch(backupUrl);
                     const data2 = await res2.json();
                     const parts = [data2.locality, data2.city, data2.principalSubdivision].filter(Boolean);
                     return [...new Set(parts)].join(', ');
-                } catch (err2) {
-                    return ""; 
-                }
+                } catch (err2) { return ""; }
             }
         }
 
+        // TẢI ẢNH VÀ XỬ LÝ EXIF
         document.getElementById('imageInput').addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -221,11 +240,8 @@
                         dateStr = `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()}`;
                     }
                     
-                    // Xử lý tọa độ với cảnh báo API
                     if (imgExif.latitude != null && imgExif.longitude != null) {
-                        lat = imgExif.latitude;
-                        lon = imgExif.longitude;
-                        
+                        lat = imgExif.latitude; lon = imgExif.longitude;
                         const fullAddress = await getFullCityName(lat, lon);
                         if (fullAddress) {
                             loc = `${fullAddress} | ${dateStr}`;
@@ -238,7 +254,7 @@
                         }
                     } else {
                         loc = dateStr;
-                        statusEl.innerHTML = `⚠ File bị trống tọa độ GPS. Đã lấy thông số máy, nhưng không thể định vị tự động.`;
+                        statusEl.innerHTML = `⚠ File bị trống tọa độ GPS. Không thể định vị tự động.`;
                         statusEl.style.color = "#ff9800";
                     }
                 } else {
@@ -254,6 +270,9 @@
             document.getElementById('inModel').value = finalModel || "GALAXY"; 
             document.getElementById('inSpecs').value = specs;
             document.getElementById('inLocation').value = loc;
+            
+            // Reset kéo thả khi load ảnh mới
+            dragOffsets = { brand: {x: 0, y: 0}, specs: {x: 0, y: 0}, loc: {x: 0, y: 0} };
 
             let fileToLoad = file;
             if (file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
@@ -276,6 +295,7 @@
             reader.readAsDataURL(fileToLoad);
         });
 
+        // CORE RENDER CANVAS
         function drawCanvasSync(cacheKey) {
             const canvas = document.getElementById('outCanvas');
             const ctx = canvas.getContext('2d');
@@ -292,16 +312,21 @@
             const colorMode = document.getElementById('inColor').value; 
             const brand = BRAND_MAP[makeTxt];
 
-            const bottomSpace = padding * 1.5; 
+            // Tự động phình to Canvas ở lề dưới tránh việc chữ bị cắt cụt khi tăng Scale 
+            const baseFontRaw = currentImage.width * 0.012 * scale;
+            const bottomSpace = padding * 1.5 + (baseFontRaw * 5); // Đảm bảo luôn dư dả không gian
+
             canvas.width = currentImage.width + (padding * 2);
             canvas.height = currentImage.height + padding + bottomSpace;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+            // Nền Blur
             ctx.save();
             ctx.filter = `blur(${blur}px) brightness(0.6)`;
             ctx.drawImage(currentImage, -padding, -padding, canvas.width + padding*2, canvas.height + padding*2);
             ctx.restore();
 
+            // Ảnh Chính Bo Góc
             ctx.save();
             ctx.beginPath();
             ctx.roundRect(padding, padding, currentImage.width, currentImage.height, cornerRadius);
@@ -310,17 +335,17 @@
             ctx.restore();
 
             const baseFont = canvas.width * 0.012 * scale;
-            let mainY = padding + currentImage.height + (bottomSpace / 2) + offset;
+            let mainY = padding + currentImage.height + (padding * 0.75) + offset + baseFont; // Master Offset
             
             const mainColor = colorMode === 'black' ? "#000000" : "#ffffff";
             const subColor = colorMode === 'black' ? "rgba(0,0,0,0.7)" : "rgba(255,255,255,0.7)";
 
+            // 1. CHUẨN BỊ LOGO / HÃNG (BRAND BLOCK)
             const logoImg = loadedImages[cacheKey];
             let logoDrawS = 0, visualW = 0, paddingAfterLogo = 0;
             
             if (logoImg && brand) {
-                logoDrawS = baseFont * brand.scale;
-                visualW = logoDrawS; 
+                logoDrawS = baseFont * brand.scale; visualW = logoDrawS; 
                 paddingAfterLogo = brand.type === 'wordmark' ? baseFont * 0.2 : baseFont * 0.5;
             } else if (makeTxt) {
                 ctx.font = `900 ${baseFont * 1.5}px 'Arial Black', Impact, sans-serif`;
@@ -331,49 +356,135 @@
             ctx.font = `normal ${baseFont}px 'Segoe UI', Arial, sans-serif`;
             modelTxt = modelTxt.toUpperCase(); 
             let modelWidth = ctx.measureText(modelTxt ? modelTxt : "").width;
-            let totalWidth = visualW + (modelTxt ? paddingAfterLogo : 0) + modelWidth;
+            let totalBrandWidth = visualW + (modelTxt ? paddingAfterLogo : 0) + modelWidth;
 
-            let startX = (layout === 'center') ? (canvas.width / 2) - (totalWidth / 2) : padding + (canvas.width * 0.02);
+            // Tính toán vị trí Gốc (chưa có kéo thả)
+            let brandBaseX = (layout === 'center') ? (canvas.width / 2) - (totalBrandWidth / 2) : padding + (canvas.width * 0.02);
+            let brandBaseY = mainY;
+            
+            // Apply Kéo Thả cho BRAND
+            let brandX = brandBaseX + dragOffsets.brand.x;
+            let brandY = brandBaseY + dragOffsets.brand.y;
 
+            // VẼ BRAND BLOCK
             if (logoImg) {
-                ctx.drawImage(logoImg, startX, mainY - logoDrawS/2, logoDrawS, logoDrawS);
+                ctx.drawImage(logoImg, brandX, brandY - logoDrawS/2, logoDrawS, logoDrawS);
             } else if (makeTxt) {
                 ctx.fillStyle = mainColor; ctx.textAlign = 'left'; ctx.textBaseline = "middle";
                 ctx.font = `900 ${baseFont * 1.5}px 'Arial Black', Impact, sans-serif`;
-                ctx.fillText(makeTxt, startX, mainY);
+                ctx.fillText(makeTxt, brandX, brandY);
             }
-
             if(modelTxt) {
                 ctx.fillStyle = mainColor; ctx.textAlign = 'left'; ctx.textBaseline = "middle";
                 ctx.font = `normal ${baseFont}px 'Segoe UI', Arial, sans-serif`;
-                ctx.fillText(modelTxt, startX + visualW + paddingAfterLogo, mainY);
+                ctx.fillText(modelTxt, brandX + visualW + paddingAfterLogo, brandY);
             }
 
+            // Ghi nhận Hitbox (Vùng cảm ứng để click kéo)
+            const brandHitH = Math.max(logoDrawS, baseFont * 1.5) + baseFont;
+            hitBoxes.brand = { x: brandX - baseFont/2, y: brandY - brandHitH/2, w: totalBrandWidth + baseFont, h: brandHitH };
+
+
+            // 2. VẼ THÔNG SỐ VÀ ĐỊA ĐIỂM (SPECS & LOC BLOCKS)
             ctx.fillStyle = subColor;
             ctx.font = `normal ${baseFont * 0.8}px 'Segoe UI', Arial, sans-serif`;
             const specs = document.getElementById('inSpecs').value.trim();
             const loc = document.getElementById('inLocation').value.trim();
 
+            let specsBaseX, specsBaseY, specsAlign;
+            let locBaseX, locBaseY, locAlign;
+
             if (layout === 'center') {
-                ctx.textAlign = "center";
-                let subY = mainY + baseFont;
-                if(specs) { ctx.fillText(specs, canvas.width / 2, subY); subY += baseFont * 1.2; }
-                if(loc) ctx.fillText(loc, canvas.width / 2, subY);
+                specsBaseX = canvas.width / 2; specsBaseY = mainY + baseFont * 1.3; specsAlign = 'center';
+                locBaseX = canvas.width / 2; locBaseY = specsBaseY + baseFont * 1.2; locAlign = 'center';
             } else {
-                ctx.textAlign = "right";
-                let rightX = canvas.width - padding - (canvas.width * 0.02);
-                if(specs && loc) {
-                    ctx.fillText(specs, rightX, mainY - baseFont*0.6); ctx.fillText(loc, rightX, mainY + baseFont*0.6);
-                } else if (specs || loc) {
-                    ctx.fillText(specs || loc, rightX, mainY);
+                specsBaseX = canvas.width - padding - (canvas.width * 0.02); specsBaseY = mainY - baseFont*0.6; specsAlign = 'right';
+                locBaseX = canvas.width - padding - (canvas.width * 0.02); locBaseY = mainY + baseFont*0.6; locAlign = 'right';
+            }
+
+            // Vẽ Specs
+            if (specs) {
+                let sX = specsBaseX + dragOffsets.specs.x; let sY = specsBaseY + dragOffsets.specs.y;
+                ctx.textAlign = specsAlign; ctx.textBaseline = "middle";
+                ctx.fillText(specs, sX, sY);
+                
+                let sw = ctx.measureText(specs).width;
+                let hsX = (specsAlign === 'center') ? sX - sw/2 : (specsAlign === 'right' ? sX - sw : sX);
+                hitBoxes.specs = { x: hsX - baseFont/2, y: sY - baseFont, w: sw + baseFont, h: baseFont * 2 };
+            } else { hitBoxes.specs = {x:0, y:0, w:0, h:0}; }
+
+            // Vẽ Loc
+            if (loc) {
+                // Nếu specs rỗng mà layout Split thì đẩy Loc lên vị trí của Specs cho đẹp
+                if(!specs && layout === 'split') { locBaseY = mainY; }
+                
+                let lX = locBaseX + dragOffsets.loc.x; let lY = locBaseY + dragOffsets.loc.y;
+                ctx.textAlign = locAlign; ctx.textBaseline = "middle";
+                ctx.fillText(loc, lX, lY);
+                
+                let lw = ctx.measureText(loc).width;
+                let hlX = (locAlign === 'center') ? lX - lw/2 : (locAlign === 'right' ? lX - lw : lX);
+                hitBoxes.loc = { x: hlX - baseFont/2, y: lY - baseFont, w: lw + baseFont, h: baseFont * 2 };
+            } else { hitBoxes.loc = {x:0, y:0, w:0, h:0}; }
+        }
+
+        // --- HỆ THỐNG LẮNG NGHE CHUỘT / CẢM ỨNG ĐỂ KÉO THẢ ---
+        const canvas = document.getElementById('outCanvas');
+
+        function getMousePos(evt) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            let clientX = evt.clientX;
+            let clientY = evt.clientY;
+            if(evt.touches && evt.touches.length > 0) {
+                clientX = evt.touches[0].clientX; clientY = evt.touches[0].clientY;
+            }
+            return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+        }
+
+        function handleStart(e) {
+            if(!currentImage) return;
+            const pos = getMousePos(e);
+            // Quét ngược để ưu tiên khối nhỏ/khối trên cùng
+            for (let key of ['loc', 'specs', 'brand']) {
+                let box = hitBoxes[key];
+                if (pos.x >= box.x && pos.x <= box.x + box.w && pos.y >= box.y && pos.y <= box.y + box.h) {
+                    activeDrag = key;
+                    startMouseX = pos.x;
+                    startMouseY = pos.y;
+                    if(e.type === 'touchstart') e.preventDefault(); // Tránh scroll màn hình lúc kéo
+                    break;
                 }
             }
         }
 
+        function handleMove(e) {
+            if (!activeDrag) return;
+            if(e.type === 'touchmove') e.preventDefault();
+            const pos = getMousePos(e);
+            const dx = pos.x - startMouseX;
+            const dy = pos.y - startMouseY;
+            dragOffsets[activeDrag].x += dx;
+            dragOffsets[activeDrag].y += dy;
+            startMouseX = pos.x;
+            startMouseY = pos.y;
+            requestAnimationFrame(() => drawCanvasSync(currentCacheKey));
+        }
+
+        function handleEnd(e) { activeDrag = null; }
+
+        canvas.addEventListener('mousedown', handleStart);
+        canvas.addEventListener('touchstart', handleStart, {passive: false});
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('touchmove', handleMove, {passive: false});
+        window.addEventListener('mouseup', handleEnd);
+        window.addEventListener('touchend', handleEnd);
+
         document.getElementById('downloadBtn').addEventListener('click', () => {
             const link = document.createElement('a');
             link.download = `Pro_Watermark_${Date.now()}.jpg`;
-            link.href = document.getElementById('outCanvas').toDataURL('image/jpeg', 0.95);
+            link.href = canvas.toDataURL('image/jpeg', 0.95);
             link.click();
         });
     </script>
